@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenis - Interaktywna Gra</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background-color: #87CEEB; overflow: hidden; }
+        #sky { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .cloud { position: absolute; background-color: white; border-radius: 50%; opacity: 0.8; }
+        #gameContainer { position: relative; width: 1000px; height: 500px; }
+        #court { width: 800px; height: 400px; border: 2px solid white; position: absolute; top: 50px; left: 100px; background-color: #1a5f1a; }
+        #ball { width: 20px; height: 20px; background-color: yellow; border-radius: 50%; position: absolute; }
+        .paddle { width: 10px; height: 80px; background-color: white; position: absolute; }
+        #playerPaddle { left: 10px; }
+        #computerPaddle { right: 10px; }
+        #score { text-align: center; color: white; font-size: 24px; margin-top: 10px; position: relative; z-index: 10; }
+        #level { text-align: center; color: white; font-size: 20px; margin-top: 5px; position: relative; z-index: 10; }
+        #net { position: absolute; left: 399px; width: 2px; height: 100%; background-color: white; }
+        .gameEnd { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; flex-direction: column; z-index: 20; }
+        .gameEnd h1 { color: white; font-size: 48px; margin-bottom: 20px; }
+        #restartButton, #restartButtonVictory, #nextLevelButton { padding: 10px 20px; font-size: 24px; cursor: pointer; margin: 10px; }
+        #trophy { font-size: 100px; margin-bottom: 20px; }
+        #confetti { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30; }
+        .stands { position: absolute; width: 100px; height: 500px; background-color: #8B4513; overflow: hidden; }
+        #leftStands { left: 0; }
+        #rightStands { right: 0; }
+        .audience-row { height: 20px; margin-bottom: 5px; }
+        .audience { width: 15px; height: 15px; background-color: #FFD700; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        #author { color: white; font-size: 12px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="sky"></div>
+    <div id="gameContainer">
+        <div id="leftStands" class="stands"></div>
+        <div id="rightStands" class="stands"></div>
+        <div id="court">
+            <div id="ball"></div>
+            <div id="playerPaddle" class="paddle"></div>
+            <div id="computerPaddle" class="paddle"></div>
+            <div id="net"></div>
+        </div>
+        <div id="level">Poziom: Łatwy</div>
+        <div id="score">Gracz: 0 | Przeciwnik: 0</div>
+        <div id="gameOver" class="gameEnd">
+            <h1>Przegrałeś!</h1>
+            <button id="restartButton">Zagraj ponownie</button>
+        </div>
+        <div id="victory" class="gameEnd">
+            <div id="trophy">🏆</div>
+            <h1>Wygrałeś Szefie!</h1>
+            <button id="nextLevelButton">Następny poziom</button>
+            <button id="restartButtonVictory">Zagraj ponownie</button>
+            <div id="author">Grę Stworzył Adam  klasa 6</div>
+        </div>
+        <canvas id="confetti"></canvas>
+    </div>
+
+    <script>
+        const ball = document.getElementById('ball');
+        const playerPaddle = document.getElementById('playerPaddle');
+        const computerPaddle = document.getElementById('computerPaddle');
+        const court = document.getElementById('court');
+        const scoreDisplay = document.getElementById('score');
+        const levelDisplay = document.getElementById('level');
+        const gameOverScreen = document.getElementById('gameOver');
+        const victoryScreen = document.getElementById('victory');
+        const restartButton = document.getElementById('restartButton');
+        const restartButtonVictory = document.getElementById('restartButtonVictory');
+        const nextLevelButton = document.getElementById('nextLevelButton');
+        let x = 400, y = 200, dx = 5, dy = 3;
+        let playerScore = 0, computerScore = 0;
+        const scores = [0, 15, 30, 40, 'gem'];
+        let gameActive = true;
+        let animationId;
+        let currentLevel = 0;
+        const levels = ['Łatwy', 'Średni', 'Trudny', 'Niemożliwy'];
+        let computerSpeed = 2;
+
+        function moveBall() {
+            if (!gameActive) return;
+            x += dx;
+            y += dy;
+            if (y < 0 || y > 380) dy = -dy;
+            
+            if (x < 20 && y > parseInt(playerPaddle.style.top) && y < parseInt(playerPaddle.style.top) + 80) {
+                dx = Math.abs(dx);
+                dx += 0.2;
+            }
+            if (x > 770 && y > parseInt(computerPaddle.style.top) && y < parseInt(computerPaddle.style.top) + 80) {
+                dx = -Math.abs(dx);
+                dx -= 0.2;
+            }
+            
+            if (x < 0) {
+                computerScore = updateScore(computerScore);
+                resetBall();
+            }
+            if (x > 780) {
+                playerScore = updateScore(playerScore);
+                resetBall();
+            }
+            
+            ball.style.left = x + 'px';
+            ball.style.top = y + 'px';
+            updateScoreDisplay();
+            animationId = requestAnimationFrame(moveBall);
+        }
+
+        function updateScore(score) {
+            if (score < 3) return score + 1;
+            if (score === 3) return 4;
+            return 0;
+        }
+
+        function updateScoreDisplay() {
+            scoreDisplay.textContent = `Gracz: ${scores[playerScore]} | Przeciwnik: ${scores[computerScore]}`;
+            if (playerScore === 4) {
+                victory();
+            } else if (computerScore === 4) {
+                gameOver();
+            }
+        }
+
+        function resetBall() {
+            x = 400;
+            y = 200;
+            dx = Math.random() > 0.5 ? 5 : -5;
+            dy = Math.random() > 0.5 ? 3 : -3;
+        }
+
+        function movePlayerPaddle(e) {
+            if (!gameActive) return;
+            let y = e.clientY - court.offsetTop - 40;
+            if (y < 0) y = 0;
+            if (y > 320) y = 320;
+            playerPaddle.style.top = y + 'px';
+        }
+
+        function moveComputerPaddle() {
+            if (!gameActive) return;
+            let computerY = parseInt(computerPaddle.style.top) || 160;
+            let targetY = y - 40;
+            if (computerY < targetY) computerY += computerSpeed;
+            if (computerY > targetY) computerY -= computerSpeed;
+            if (computerY < 0) computerY = 0;
+            if (computerY > 320) computerY = 320;
+            computerPaddle.style.top = computerY + 'px';
+            requestAnimationFrame(moveComputerPaddle);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            gameOverScreen.style.display = 'flex';
+            cancelAnimationFrame(animationId);
+        }
+
+        function victory() {
+            gameActive = false;
+            victoryScreen.style.display = 'flex';
+            cancelAnimationFrame(animationId);
+            startConfetti();
+        }
+
+        function restartGame() {
+            gameActive = true;
+            playerScore = 0;
+            computerScore = 0;
+            resetBall();
+            gameOverScreen.style.display = 'none';
+            victoryScreen.style.display = 'none';
+            updateScoreDisplay();
+            moveBall();
+            moveComputerPaddle();
+            stopConfetti();
+        }
+
+        function nextLevel() {
+            currentLevel = Math.min(currentLevel + 1, levels.length - 1);
+            levelDisplay.textContent = `Poziom: ${levels[currentLevel]}`;
+            computerSpeed = 2 + currentLevel * 0.5;
+            restartGame();
+        }
+
+        function generateAudience() {
+            const leftStands = document.getElementById('leftStands');
+            const rightStands = document.getElementById('rightStands');
+            
+            for (let i = 0; i < 20; i++) {
+                const leftRow = document.createElement('div');
+                const rightRow = document.createElement('div');
+                leftRow.className = 'audience-row';
+                rightRow.className = 'audience-row';
+                
+                for (let j = 0; j < 5; j++) {
+                    const leftSpectator = document.createElement('div');
+                    const rightSpectator = document.createElement('div');
+                    leftSpectator.className = 'audience';
+                    rightSpectator.className = 'audience';
+                    leftRow.appendChild(leftSpectator);
+                    rightRow.appendChild(rightSpectator);
+                }
+                
+                leftStands.appendChild(leftRow);
+                rightStands.appendChild(rightRow);
+            }
+        }
+
+        function generateClouds() {
+            const sky = document.getElementById('sky');
+            for (let i = 0; i < 10; i++) {
+                const cloud = document.createElement('div');
+                cloud.className = 'cloud';
+                cloud.style.width = `${Math.random() * 100 + 50}px`;
+                cloud.style.height = `${Math.random() * 60 + 30}px`;
+                cloud.style.top = `${Math.random() * 100}%`;
+                cloud.style.left = `${Math.random() * 100}%`;
+                sky.appendChild(cloud);
+            }
+        }
+
+        court.addEventListener('mousemove', movePlayerPaddle);
+        restartButton.addEventListener('click', restartGame);
+        restartButtonVictory.addEventListener('click', restartGame);
+        nextLevelButton.addEventListener('click', nextLevel);
+
+        // Inicjalizacja gry
+        generateAudience();
+        generateClouds();
+        resetBall();
+        moveBall();
+        moveComputerPaddle();
+
+        // Confetti
+        const confettiCanvas = document.getElementById('confetti');
+        const ctx = confettiCanvas.getContext('2d');
+        const confettiPieces = [];
+        let confettiAnimation;
+
+        function startConfetti() {
+            confettiCanvas.width = window.innerWidth;
+            confettiCanvas.height = window.innerHeight;
+            createConfettiPieces();
+            animateConfetti();
+        }
+
+        function createConfettiPieces() {
+            for (let i = 0; i < 100; i++) {
+                confettiPieces.push({
+                    x: Math.random() * confettiCanvas.width,
+                    y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+                    size: Math.random() * 5 + 5,
+                    color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
+                    speed: Math.random() * 3 + 1
+                });
+            }
+        }
+
+        function animateConfetti() {
+            ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            confettiPieces.forEach(piece => {
+                ctx.beginPath();
+                ctx.arc(piece.x, piece.y, piece.size, 0, 2 * Math.PI);
+                ctx.fillStyle = piece.color;
+                ctx.fill();
+                piece.y += piece.speed;
+                if (piece.y > confettiCanvas.height) {
+                    piece.y = -piece.size;
+                }
+            });
+            confettiAnimation = requestAnimationFrame(animateConfetti);
+        }
+
+        function stopConfetti() {
+            cancelAnimationFrame(confettiAnimation);
+            ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            confettiPieces.length = 0;
+        }
+    </script>
+</body>
+</html>
